@@ -1,0 +1,29 @@
+{
+  "version": 2,
+  "actions": [
+    {
+      "id": "task-complete",
+      "label": "Task complete",
+      "hook_event": "Stop",
+      "matcher": "",
+      "sound_mode": "single",
+      "sound_file": "Complete Sound effect ( No copyright ).mp3"
+    },
+    {
+      "id": "question",
+      "label": "Agent asks a question",
+      "hook_event": "Notification",
+      "matcher": "",
+      "sound_mode": "single",
+      "sound_file": "Question.mp3"
+    },
+    {
+      "id": "session-start",
+      "label": "Session start",
+      "hook_event": "SessionStart",
+      "matcher": "",
+      "sound_mode": "single",
+      "sound_file": "J.A.R.V.I.S 4K UHD LIVE WALLPAPER - WELCOME BACK SIR.mp3"
+    }
+  ]
+}
