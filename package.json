@@ -1,0 +1,32 @@
+{
+  "name": "agent-notifications",
+  "version": "2.0.0",
+  "description": "Configure sound notifications for agent lifecycle events and generate a portable agent skill.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "agent-notifications": "dist/cli.js"
+  },
+  "main": "dist/agent-notifications.js",
+  "types": "dist/agent-notifications.d.ts",
+  "files": [
+    "dist",
+    "AgentNotifications/notifications.json",
+    "AgentNotifications/sounds",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "npm run build --silent && node dist/cli.js",
+    "test": "npm run build --silent && node --test dist/test/**/*.test.js",
+    "prepare": "npm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.0"
+  }
+}
