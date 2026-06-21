@@ -102,8 +102,8 @@ node "<SKILL_DIR>/play_sound.js" --folder "<SKILL_DIR>/sounds/task-complete" --r
 
 ## Notes
 
-- Requires Node.js 14 or newer. Playback uses `afplay` on macOS, the registered
-  media application on Windows, and an available `paplay`, `aplay`, `ffplay`,
+- Requires Node.js 14 or newer. Playback uses `afplay` on macOS, Windows' built-in
+  MCI audio API through a hidden process, and an available `paplay`, `aplay`, `ffplay`,
   `mpv`, or `play` command on Linux.
 - The hook waits for playback to finish. Keep notification clips short.
 - Available hook events: `Stop`, `Notification`, `SessionStart`, `SubagentStop`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PreCompact`, `SessionEnd`.

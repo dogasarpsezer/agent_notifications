@@ -39,8 +39,20 @@ let players;
 if (process.platform === "darwin") {
   players = [["afplay", [sound]]];
 } else if (process.platform === "win32") {
-  // `start` uses the registered Windows audio application.
-  players = [["cmd.exe", ["/d", "/s", "/c", "start", "", "/wait", sound]]];
+  // Use Windows' built-in MCI API through a hidden PowerShell process. This
+  // supports WAV and MP3 without opening the registered media player.
+  const escapedSound = sound.replace(/'/g, "''");
+  const script = [
+    "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class NativeAudio { [DllImport(\"winmm.dll\", CharSet=CharSet.Unicode)] public static extern int mciSendString(string command, IntPtr buffer, int bufferSize, IntPtr callback); }'",
+    `$path = '${escapedSound}'`,
+    "$alias = 'AgentNotification'",
+    "$open = [NativeAudio]::mciSendString(('open \"' + $path + '\" alias ' + $alias), [IntPtr]::Zero, 0, [IntPtr]::Zero)",
+    "if ($open -ne 0) { exit $open }",
+    "try { $play = [NativeAudio]::mciSendString(('play ' + $alias + ' wait'), [IntPtr]::Zero, 0, [IntPtr]::Zero); if ($play -ne 0) { exit $play } }",
+    "finally { [void][NativeAudio]::mciSendString(('close ' + $alias), [IntPtr]::Zero, 0, [IntPtr]::Zero) }",
+  ].join("\n");
+  const encoded = Buffer.from(script, "utf16le").toString("base64");
+  players = [["powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-EncodedCommand", encoded]]];
 } else {
   players = [
     ["paplay", [sound]],

@@ -88,13 +88,15 @@ The default output is `AgentNotifications/agent-notifications-skill/` and contai
 ```text
 SKILL.md
 notifications.json
+package.json
 play_sound.js
 sounds/<action-id>/...
 ```
 
 The generated `play_sound.js` is a self-contained Node.js hook runtime. It uses
-`afplay` on macOS, the registered audio application on Windows, and `paplay`,
-`aplay`, `ffplay`, `mpv`, or `play` on Linux.
+`afplay` on macOS, Windows' built-in MCI audio API through a hidden process, and
+`paplay`, `aplay`, `ffplay`, `mpv`, or `play` on Linux. Playback does not open a
+media-player window.
 
 ## License
 

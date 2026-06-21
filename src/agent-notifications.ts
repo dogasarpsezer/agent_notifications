@@ -108,7 +108,20 @@ sound = path.resolve(sound);
 if (!fs.existsSync(sound) || !fs.statSync(sound).isFile()) fail(\`sound file not found: \${sound}\`);
 let players;
 if (process.platform === "darwin") players = [["afplay", [sound]]];
-else if (process.platform === "win32") players = [["cmd.exe", ["/d", "/s", "/c", "start", "", "/wait", sound]]];
+else if (process.platform === "win32") {
+  const escapedSound = sound.replace(/'/g, "''");
+  const script = [
+    "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class NativeAudio { [DllImport(\\\"winmm.dll\\\", CharSet=CharSet.Unicode)] public static extern int mciSendString(string command, IntPtr buffer, int bufferSize, IntPtr callback); }'",
+    \`$path = '\${escapedSound}'\`,
+    "$alias = 'AgentNotification'",
+    "$open = [NativeAudio]::mciSendString(('open \\\"' + $path + '\\\" alias ' + $alias), [IntPtr]::Zero, 0, [IntPtr]::Zero)",
+    "if ($open -ne 0) { exit $open }",
+    "try { $play = [NativeAudio]::mciSendString(('play ' + $alias + ' wait'), [IntPtr]::Zero, 0, [IntPtr]::Zero); if ($play -ne 0) { exit $play } }",
+    "finally { [void][NativeAudio]::mciSendString(('close ' + $alias), [IntPtr]::Zero, 0, [IntPtr]::Zero) }",
+  ].join("\\n");
+  const encoded = Buffer.from(script, "utf16le").toString("base64");
+  players = [["powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-EncodedCommand", encoded]]];
+}
 else players = [["paplay", [sound]], ["aplay", [sound]], ["ffplay", ["-nodisp", "-autoexit", "-loglevel", "quiet", sound]], ["mpv", ["--no-video", "--really-quiet", sound]], ["play", ["-q", sound]]];
 for (const [command, args] of players) {
   const result = spawnSync(command, args, { stdio: "ignore", windowsHide: true });
@@ -200,6 +213,7 @@ export function generateSkill(config: NotificationConfig, outputDir: string, bas
     for (const file of files) copyFileSync(join(source, file), join(destination, file));
   }
   writeFileSync(join(output, "play_sound.js"), PLAY_SOUND_JS, "utf8");
+  writeFileSync(join(output, "package.json"), `${JSON.stringify({ private: true, type: "commonjs" }, null, 2)}\n`, "utf8");
   config.save(join(output, CONFIG_FILENAME));
   writeFileSync(join(output, "SKILL.md"), buildSkillMd(config), "utf8");
   return output;

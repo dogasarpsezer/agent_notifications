@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { Action, MODE_RANDOM, MODE_SINGLE, NotificationConfig, buildHooksBlock, buildSkillMd, generateSkill, installSkillGlobal, listSounds } from "../agent-notifications.js";
+import { Action, MODE_RANDOM, MODE_SINGLE, NotificationConfig, PLAY_SOUND_JS, buildHooksBlock, buildSkillMd, generateSkill, installSkillGlobal, listSounds } from "../agent-notifications.js";
 import { main } from "../cli.js";
 
 function temp(): string { return mkdtempSync(join(tmpdir(), "agent-notifications-test-")); }
@@ -31,12 +31,19 @@ test("hook generation handles random, single, and matchers", () => {
   assert.doesNotThrow(() => JSON.parse(buildSkillMd(config).split("```json")[1].split("```")[0]));
 });
 
+test("Windows playback is hidden and does not launch a media player", () => {
+  assert.match(PLAY_SOUND_JS, /mciSendString/);
+  assert.match(PLAY_SOUND_JS, /-WindowStyle.*Hidden/);
+  assert.doesNotMatch(PLAY_SOUND_JS, /cmd\.exe|\"start\"/);
+});
+
 test("skill generation copies selected sounds", () => {
   const base = temp(); const config = new NotificationConfig(); config.ensureFolders(base);
   wav(config.actions[0].folder(base), "a.wav"); wav(config.actions[0].folder(base), "b.wav"); config.actions[0].sound_mode = MODE_RANDOM;
   const out = generateSkill(config, join(base, "skill"), base);
   assert.deepEqual(readdirSync(join(out, "sounds", "task-complete")), ["a.wav", "b.wav"]);
   assert.match(readFileSync(join(out, "SKILL.md"), "utf8"), /name: agent-notifications/);
+  assert.equal(JSON.parse(readFileSync(join(out, "package.json"), "utf8")).type, "commonjs");
 });
 
 test("invalid selection does not replace an installed skill", () => {
