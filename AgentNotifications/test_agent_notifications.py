@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests for the Agent Notifications configurator.
 
-Pure-Python tests (no PowerShell / audio needed). Run with:
+Pure-Python tests (no Node.js / audio needed). Run with:
 
     python -m unittest test_agent_notifications -v
 """
@@ -83,15 +83,15 @@ class HooksBlockTests(unittest.TestCase):
         cfg = an.NotificationConfig()
         cfg.actions[0].sound_mode = an.MODE_RANDOM
         cmd = an.build_hooks_block(cfg)["hooks"]["Stop"][0]["hooks"][0]["command"]
-        self.assertIn(r'-Folder "<SKILL_DIR>\sounds\task-complete" -Random', cmd)
+        self.assertIn('--folder "<SKILL_DIR>/sounds/task-complete" --random', cmd)
 
     def test_single_command_uses_path_flag(self):
         cfg = an.NotificationConfig()
         cfg.actions[0].sound_mode = an.MODE_SINGLE
         cfg.actions[0].sound_file = "done.wav"
         cmd = an.build_hooks_block(cfg)["hooks"]["Stop"][0]["hooks"][0]["command"]
-        self.assertIn(r'-Path "<SKILL_DIR>\sounds\task-complete\done.wav"', cmd)
-        self.assertNotIn("-Random", cmd)
+        self.assertIn('--path "<SKILL_DIR>/sounds/task-complete/done.wav"', cmd)
+        self.assertNotIn("--random", cmd)
 
     def test_tool_event_gets_matcher(self):
         cfg = an.NotificationConfig(actions=[
@@ -133,7 +133,7 @@ class GenerateTests(unittest.TestCase):
             an.generate_skill(cfg, out, base)
             dest = os.path.join(out, "sounds", "task-complete")
             self.assertEqual(sorted(os.listdir(dest)), ["a.wav", "b.wav"])
-            for f in ("SKILL.md", "notifications.json", "play_sound.ps1"):
+            for f in ("SKILL.md", "notifications.json", "play_sound.js"):
                 self.assertTrue(os.path.isfile(os.path.join(out, f)))
 
     def test_single_copies_only_selected(self):
@@ -186,7 +186,7 @@ class InstallSkillTests(unittest.TestCase):
             path = an.install_skill_global(cfg, base, skills_dir=skills)
             self.assertEqual(path, os.path.join(skills, "agent-notifications"))
             self.assertTrue(os.path.isfile(os.path.join(path, "SKILL.md")))
-            self.assertTrue(os.path.isfile(os.path.join(path, "play_sound.ps1")))
+            self.assertTrue(os.path.isfile(os.path.join(path, "play_sound.js")))
 
     def test_overwrites_existing_and_drops_stale_files(self):
         with tempfile.TemporaryDirectory() as base:

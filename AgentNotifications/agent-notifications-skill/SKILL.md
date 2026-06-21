@@ -3,7 +3,7 @@ name: agent-notifications
 description: >-
   Play sound notifications for agent lifecycle events. When this skill folder is
   available and the user asks to enable (or disable) notification sounds, create
-  (or remove) Claude Code hooks that play a sound for each action via PowerShell.
+  (or remove) Claude Code hooks that play a sound for each action via Node.js.
   Each action has its own folder under sounds/<action-id>; a "random" action plays
   a random file from its folder each time. Covers task complete (Stop), question
   asked (Notification), session start (SessionStart), and any custom actions below.
@@ -12,10 +12,10 @@ description: >-
 # Agent Notifications
 
 This skill maps agent lifecycle **actions** to **sound folders** and tells you how
-to wire them up as Claude Code hooks that play through PowerShell on Windows.
+to wire them up as cross-platform Claude Code hooks that run through Node.js.
 
 Each action owns a folder `sounds/<action-id>/` next to this file. An action is
-either set to a **specific file** in its folder or to **random** (PowerShell picks
+either set to a **specific file** in its folder or to **random** (Node.js picks
 a different file from the folder on every play). The configurator that produced
 this folder does **not** edit settings itself - installing the hooks is your job,
 performed only when the user asks.
@@ -56,7 +56,7 @@ Do this when the user asks you to enable notification sounds.
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"<SKILL_DIR>\\play_sound.ps1\" -Path \"<SKILL_DIR>\\sounds\\task-complete\\Complete Sound effect ( No copyright ).mp3\""
+            "command": "node \"<SKILL_DIR>/play_sound.js\" --path \"<SKILL_DIR>/sounds/task-complete/Complete Sound effect ( No copyright ).mp3\""
           }
         ]
       }
@@ -66,7 +66,7 @@ Do this when the user asks you to enable notification sounds.
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"<SKILL_DIR>\\play_sound.ps1\" -Path \"<SKILL_DIR>\\sounds\\question\\Question.mp3\""
+            "command": "node \"<SKILL_DIR>/play_sound.js\" --path \"<SKILL_DIR>/sounds/question/Question.mp3\""
           }
         ]
       }
@@ -76,7 +76,7 @@ Do this when the user asks you to enable notification sounds.
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"<SKILL_DIR>\\play_sound.ps1\" -Path \"<SKILL_DIR>\\sounds\\session-start\\J.A.R.V.I.S 4K UHD LIVE WALLPAPER - WELCOME BACK SIR.mp3\""
+            "command": "node \"<SKILL_DIR>/play_sound.js\" --path \"<SKILL_DIR>/sounds/session-start/J.A.R.V.I.S 4K UHD LIVE WALLPAPER - WELCOME BACK SIR.mp3\""
           }
         ]
       }
@@ -85,25 +85,25 @@ Do this when the user asks you to enable notification sounds.
 }
 ```
 
-`play_sound.ps1` resolves the sound: `-Path <file>` plays that file; `-Folder <dir>
--Random` plays a random `.wav`/`.mp3` from the folder on each invocation.
+`play_sound.js` resolves the sound: `--path <file>` plays that file; `--folder
+<dir> --random` plays a random `.wav`/`.mp3` from the folder on each invocation.
 
 ## Removing the hooks
 
 To disable notifications, remove the hook entries whose `command` references this
-skill folder's `play_sound.ps1` from the settings file, leaving any unrelated
+skill folder's `play_sound.js` from the settings file, leaving any unrelated
 hooks intact.
 
 ## Testing playback manually
 
 ```
-powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>\play_sound.ps1" -Folder "<SKILL_DIR>\sounds\task-complete" -Random
+node "<SKILL_DIR>/play_sound.js" --folder "<SKILL_DIR>/sounds/task-complete" --random
 ```
 
 ## Notes
 
-- `play_sound.ps1` plays `.wav` synchronously (System.Media.SoundPlayer) and
-  `.mp3`/other formats via System.Windows.Media.MediaPlayer.
-- The hook waits for playback to finish; mp3 playback is capped at `-MaxSeconds`
-  (default 15). Keep notification clips short.
+- Requires Node.js 14 or newer. Playback uses `afplay` on macOS, the registered
+  media application on Windows, and an available `paplay`, `aplay`, `ffplay`,
+  `mpv`, or `play` command on Linux.
+- The hook waits for playback to finish. Keep notification clips short.
 - Available hook events: `Stop`, `Notification`, `SessionStart`, `SubagentStop`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PreCompact`, `SessionEnd`.

@@ -3,10 +3,11 @@
 A terminal app (Python, standard library only) that gives each agent lifecycle
 **action** its own **sound folder**, lets you pick a specific sound or **random**,
 and generates a **skill folder** you hand to an agent. The agent reads the skill
-and installs the PowerShell sound-playback hooks itself — this app never edits
+and installs the Node.js sound-playback hooks itself — this app never edits
 your settings.
 
-- **No external dependencies** — Python 3.8+ and (for playback) Windows PowerShell.
+- **Cross-platform playback** — Python 3.8+ and Node.js 14+ on Windows, macOS,
+  and Linux.
 - **No sound paths to type** — you drop files into per-action folders.
 - **Random mode** — a different sound on every event.
 
@@ -275,7 +276,7 @@ python agent_notifications.py implement
 agent-notifications-skill/
 ├── SKILL.md            # instructions the agent follows to install the hooks
 ├── notifications.json  # the action -> event -> selection mapping
-├── play_sound.ps1      # plays -Path <file>, or -Folder <dir> -Random
+├── play_sound.js       # plays --path <file>, or --folder <dir> --random
 └── sounds/
     ├── task-complete/  # all files (random copies the whole folder)
     │   ├── chimes.wav
@@ -296,7 +297,7 @@ the agent replaces with the real absolute path):
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"<SKILL_DIR>\\play_sound.ps1\" -Folder \"<SKILL_DIR>\\sounds\\task-complete\" -Random"
+            "command": "node \"<SKILL_DIR>/play_sound.js\" --folder \"<SKILL_DIR>/sounds/task-complete\" --random"
           }
         ]
       }
@@ -306,7 +307,7 @@ the agent replaces with the real absolute path):
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"<SKILL_DIR>\\play_sound.ps1\" -Path \"<SKILL_DIR>\\sounds\\session-start\\Windows Logon.wav\""
+            "command": "node \"<SKILL_DIR>/play_sound.js\" --path \"<SKILL_DIR>/sounds/session-start/Windows Logon.wav\""
           }
         ]
       }
@@ -315,8 +316,8 @@ the agent replaces with the real absolute path):
 }
 ```
 
-A **random** action becomes `-Folder ... -Random` (PowerShell re-picks on every
-event); a **single** action becomes `-Path ...`.
+A **random** action becomes `--folder ... --random` (Node.js re-picks on every
+event); a **single** action becomes `--path ...`.
 
 ---
 
@@ -328,29 +329,27 @@ event); a **single** action becomes `-Path ...`.
    `SKILL.md` into `.claude/settings.json`, substituting the folder's real path.
 3. Restart / reload the agent so the hooks take effect.
 4. To turn sounds off, ask it to **disable notifications** — it removes the hook
-   entries that reference this folder's `play_sound.ps1`.
+   entries that reference this folder's `play_sound.js`.
 
 ---
 
 ## Testing playback directly
 
-You don't need an agent to hear a sound. Run `play_sound.ps1` yourself:
+You don't need an agent to hear a sound. Run `play_sound.js` yourself:
 
-```powershell
+```bash
 # A random file from a folder
-powershell -NoProfile -ExecutionPolicy Bypass `
-  -File ".\agent-notifications-skill\play_sound.ps1" `
-  -Folder ".\agent-notifications-skill\sounds\task-complete" -Random
+node "./agent-notifications-skill/play_sound.js" \
+  --folder "./agent-notifications-skill/sounds/task-complete" --random
 
 # A specific file
-powershell -NoProfile -ExecutionPolicy Bypass `
-  -File ".\agent-notifications-skill\play_sound.ps1" `
-  -Path ".\agent-notifications-skill\sounds\session-start\Windows Logon.wav"
+node "./agent-notifications-skill/play_sound.js" \
+  --path "./agent-notifications-skill/sounds/session-start/Windows Logon.wav"
 ```
 
-`.wav` plays synchronously via `System.Media.SoundPlayer`; `.mp3` / other formats
-via `System.Windows.Media.MediaPlayer`, capped at `-MaxSeconds` (default 15).
-Keep notification clips short — the hook waits for playback to finish.
+Playback uses `afplay` on macOS, the registered media application on Windows,
+and the first available supported player on Linux (`paplay`, `aplay`, `ffplay`,
+`mpv`, or `play`). Keep notification clips short because the hook waits.
 
 ---
 
@@ -360,8 +359,7 @@ Keep notification clips short — the hook waits for playback to finish.
 python -m unittest test_agent_notifications -v
 ```
 
-The app and tests are pure Python; Windows + PowerShell is only needed for actual
-sound playback.
+The app and tests are pure Python; Node.js is used for actual sound playback.
 
 ---
 
@@ -372,16 +370,16 @@ A random action needs at least one file and a single action needs its chosen fil
 present, or `generate` errors. Drop files into the folder first.
 
 **Nothing plays when the hook fires.**
-Test with `play_sound.ps1` directly (above). Check the file exists, the path in
-`settings.json` is absolute, and PowerShell can run it
-(`-ExecutionPolicy Bypass` is already included).
+Test with `play_sound.js` directly (above). Check the file exists, the path in
+`settings.json` is absolute, and `node` is available on `PATH`. On Linux, ensure
+one of the supported audio player commands is installed.
 
 **I deleted an action but its folder is still there.**
 Intentional — your sound files are left on disk. Delete the folder manually if you
 want it gone.
 
 **Can I use MP3?**
-Yes. WAV is the most reliable; MP3 and other formats play via MediaPlayer.
+Yes. WAV and MP3 are supported when the platform's selected player supports them.
 
 **Where do sounds live when packaged as an `.exe`?**
 Next to the executable: `<exe-dir>/sounds/<action-id>/`.
