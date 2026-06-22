@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   Action, CONFIG_FILENAME, DEFAULT_OUTPUT_DIRNAME, HOOK_EVENTS, MATCHER_EVENTS, MODE_NONE, MODE_RANDOM, MODE_SINGLE,
-  NotificationConfig, appBaseDir, formatActions, generateSkill, globalSkillsDir, humanSize,
+  NotificationConfig, appBaseDir, clampVolume, formatActions, generateSkill, globalSkillsDir, humanSize,
   installSkillGlobal, isHookEvent, listSounds, validateActionId,
 } from "./agent-notifications.js";
 
@@ -32,7 +32,7 @@ function help(): void {
 Commands:
   list
   folders
-  set <id> (--file <name> | --random | --none)
+  set <id> (--file <name> | --random | --none) [--volume <0-100>]
   add --id <id> --label <text> --event <event> [--matcher <matcher>]
   remove <id>
   generate [--output <dir>]
@@ -121,12 +121,20 @@ export async function main(argv = process.argv.slice(2), baseDir = appBaseDir())
     const id = parsed.positionals[0]; const action = config.find(id);
     if (!action) { console.error(`! No action with id '${id}'.`); return 1; }
     const file = optionString(parsed, "--file");
-    if (parsed.options.has("--none")) { action.sound_mode = MODE_NONE; action.sound_file = ""; }
-    else if (parsed.options.has("--random")) { action.sound_mode = MODE_RANDOM; action.sound_file = ""; }
+    const volumeOpt = optionString(parsed, "--volume");
+    let changed = false;
+    if (parsed.options.has("--none")) { action.sound_mode = MODE_NONE; action.sound_file = ""; changed = true; }
+    else if (parsed.options.has("--random")) { action.sound_mode = MODE_RANDOM; action.sound_file = ""; changed = true; }
     else if (file) {
       if (!listSounds(action.folder(baseDir)).includes(file)) { console.error(`! '${file}' not found in ${action.folder(baseDir)}`); return 1; }
-      action.sound_mode = MODE_SINGLE; action.sound_file = file;
-    } else { console.error("! set requires --file, --random, or --none."); return 1; }
+      action.sound_mode = MODE_SINGLE; action.sound_file = file; changed = true;
+    }
+    if (volumeOpt !== undefined) {
+      const n = Number(volumeOpt);
+      if (Number.isNaN(n) || n < 0 || n > 100) { console.error("! --volume must be a number between 0 and 100."); return 1; }
+      action.volume = clampVolume(n); changed = true;
+    }
+    if (!changed) { console.error("! set requires --file, --random, --none, or --volume."); return 1; }
     config.save(configPath); console.log(`+ '${id}' -> ${action.describeSound()}`); return 0;
   }
   if (command === "add") {

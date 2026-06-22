@@ -31,6 +31,24 @@ test("hook generation handles random, single, and matchers", () => {
   assert.doesNotThrow(() => JSON.parse(buildSkillMd(config).split("```json")[1].split("```")[0]));
 });
 
+test("SessionStart matcher scopes settings and self-filters on source", () => {
+  const config = new NotificationConfig([new Action({ id: "session-start", label: "Session start", hook_event: "SessionStart", matcher: "startup", sound_mode: MODE_SINGLE, sound_file: "a.mp3" })]);
+  const entry = buildHooksBlock(config).hooks.SessionStart[0];
+  assert.equal(entry.matcher, "startup");
+  assert.match(entry.hooks[0].command, /--require-source "startup"/);
+  assert.match(PLAY_SOUND_JS, /--require-source/);
+});
+
+test("volume flag flows into hook command and player script", () => {
+  const config = new NotificationConfig([new Action({ id: "question", label: "Q", hook_event: "Notification", sound_mode: MODE_SINGLE, sound_file: "q.mp3", volume: 50 })]);
+  assert.match(buildHooksBlock(config).hooks.Notification[0].hooks[0].command, /--volume 50/);
+  assert.match(PLAY_SOUND_JS, /--volume/);
+  assert.match(PLAY_SOUND_JS, /setaudio/);
+  const full = new NotificationConfig([new Action({ id: "question", label: "Q", hook_event: "Notification", sound_mode: MODE_SINGLE, sound_file: "q.mp3" })]);
+  assert.equal(full.actions[0].volume, 100);
+  assert.doesNotMatch(buildHooksBlock(full).hooks.Notification[0].hooks[0].command, /--volume/);
+});
+
 test("Windows playback is hidden and does not launch a media player", () => {
   assert.match(PLAY_SOUND_JS, /mciSendString/);
   assert.match(PLAY_SOUND_JS, /-WindowStyle.*Hidden/);

@@ -22,7 +22,11 @@ export interface ActionData {
   matcher?: string;
   sound_mode?: SoundMode;
   sound_file?: string;
+  volume?: number;
 }
+
+export const DEFAULT_VOLUME = 100;
+export function clampVolume(value: number): number { return Math.max(0, Math.min(100, Math.round(value))); }
 
 export class Action {
   id: string;
@@ -31,6 +35,7 @@ export class Action {
   matcher: string;
   sound_mode: SoundMode;
   sound_file: string;
+  volume: number;
 
   constructor(data: ActionData) {
     this.id = data.id;
@@ -39,18 +44,20 @@ export class Action {
     this.matcher = data.matcher ?? "";
     this.sound_mode = data.sound_mode ?? MODE_NONE;
     this.sound_file = data.sound_file ?? "";
+    this.volume = clampVolume(data.volume ?? DEFAULT_VOLUME);
   }
 
   folderRel(): string { return `${SOUNDS_DIRNAME}/${this.id}`; }
   folder(baseDir: string): string { return join(baseDir, SOUNDS_DIRNAME, this.id); }
   isConfigured(): boolean { return this.sound_mode === MODE_RANDOM || (this.sound_mode === MODE_SINGLE && Boolean(this.sound_file)); }
   describeSound(): string {
-    if (this.sound_mode === MODE_RANDOM) return `random (${this.folderRel()})`;
-    if (this.sound_mode === MODE_SINGLE && this.sound_file) return `${this.folderRel()}/${this.sound_file}`;
+    const vol = this.volume !== DEFAULT_VOLUME ? ` @ ${this.volume}%` : "";
+    if (this.sound_mode === MODE_RANDOM) return `random (${this.folderRel()})${vol}`;
+    if (this.sound_mode === MODE_SINGLE && this.sound_file) return `${this.folderRel()}/${this.sound_file}${vol}`;
     return "(not set)";
   }
   toJSON(): Required<ActionData> {
-    return { id: this.id, label: this.label, hook_event: this.hook_event, matcher: this.matcher, sound_mode: this.sound_mode, sound_file: this.sound_file };
+    return { id: this.id, label: this.label, hook_event: this.hook_event, matcher: this.matcher, sound_mode: this.sound_mode, sound_file: this.sound_file, volume: this.volume };
   }
 }
 
@@ -95,6 +102,15 @@ const path = require("path");
 const { spawnSync } = require("child_process");
 function fail(message) { console.error(\`play_sound.js: \${message}\`); process.exit(1); }
 function option(name) { const index = process.argv.indexOf(name); return index >= 0 ? process.argv[index + 1] : undefined; }
+const requireSource = option("--require-source");
+if (requireSource) {
+  let source = null;
+  try { source = JSON.parse(fs.readFileSync(0, "utf8")).source ?? null; } catch (e) {}
+  if (source !== null && source !== requireSource) process.exit(0);
+}
+const volumeOpt = option("--volume");
+let volume = 100;
+if (volumeOpt !== undefined) { const parsed = Number(volumeOpt); if (!Number.isNaN(parsed)) volume = Math.max(0, Math.min(100, parsed)); }
 let sound = option("--path");
 const folder = option("--folder");
 if (folder) {
@@ -107,22 +123,33 @@ if (!sound) fail("provide --path <file> or --folder <dir> [--random]");
 sound = path.resolve(sound);
 if (!fs.existsSync(sound) || !fs.statSync(sound).isFile()) fail(\`sound file not found: \${sound}\`);
 let players;
-if (process.platform === "darwin") players = [["afplay", [sound]]];
+if (process.platform === "darwin") players = [["afplay", ["-v", String(volume / 100), sound]]];
 else if (process.platform === "win32") {
   const escapedSound = sound.replace(/'/g, "''");
+  const mciVolume = Math.round(volume * 10);
   const script = [
     "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class NativeAudio { [DllImport(\\\"winmm.dll\\\", CharSet=CharSet.Unicode)] public static extern int mciSendString(string command, IntPtr buffer, int bufferSize, IntPtr callback); }'",
     \`$path = '\${escapedSound}'\`,
     "$alias = 'AgentNotification'",
     "$open = [NativeAudio]::mciSendString(('open \\\"' + $path + '\\\" alias ' + $alias), [IntPtr]::Zero, 0, [IntPtr]::Zero)",
     "if ($open -ne 0) { exit $open }",
+    \`[void][NativeAudio]::mciSendString(('setaudio ' + $alias + ' volume to \${mciVolume}'), [IntPtr]::Zero, 0, [IntPtr]::Zero)\`,
     "try { $play = [NativeAudio]::mciSendString(('play ' + $alias + ' wait'), [IntPtr]::Zero, 0, [IntPtr]::Zero); if ($play -ne 0) { exit $play } }",
     "finally { [void][NativeAudio]::mciSendString(('close ' + $alias), [IntPtr]::Zero, 0, [IntPtr]::Zero) }",
   ].join("\\n");
   const encoded = Buffer.from(script, "utf16le").toString("base64");
   players = [["powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-EncodedCommand", encoded]]];
 }
-else players = [["paplay", [sound]], ["aplay", [sound]], ["ffplay", ["-nodisp", "-autoexit", "-loglevel", "quiet", sound]], ["mpv", ["--no-video", "--really-quiet", sound]], ["play", ["-q", sound]]];
+else {
+  const paVolume = Math.round((volume / 100) * 65536);
+  players = [
+    ["paplay", [\`--volume=\${paVolume}\`, sound]],
+    ["aplay", [sound]],
+    ["ffplay", ["-volume", String(volume), "-nodisp", "-autoexit", "-loglevel", "quiet", sound]],
+    ["mpv", [\`--volume=\${volume}\`, "--no-video", "--really-quiet", sound]],
+    ["play", ["-v", String(volume / 100), "-q", sound]],
+  ];
+}
 for (const [command, args] of players) {
   const result = spawnSync(command, args, { stdio: "ignore", windowsHide: true });
   if (!result.error && result.status === 0) process.exit(0);
@@ -132,8 +159,14 @@ fail(\`no working audio player found for \${process.platform}\`);
 `;
 
 export function hookCommand(skillDir: string, action: Action): string {
-  if (action.sound_mode === MODE_RANDOM) return `node "${skillDir}/play_sound.js" --folder "${skillDir}/${action.folderRel()}" --random`;
-  return `node "${skillDir}/play_sound.js" --path "${skillDir}/${action.folderRel()}/${action.sound_file}"`;
+  let command = action.sound_mode === MODE_RANDOM
+    ? `node "${skillDir}/play_sound.js" --folder "${skillDir}/${action.folderRel()}" --random`
+    : `node "${skillDir}/play_sound.js" --path "${skillDir}/${action.folderRel()}/${action.sound_file}"`;
+  // SessionStart fires for startup/resume/clear/compact. The settings `matcher` should scope it,
+  // but some clients don't honor it, so the script also self-filters on the `source` it gets on stdin.
+  if (action.hook_event === "SessionStart" && action.matcher) command += ` --require-source "${action.matcher}"`;
+  if (action.volume !== DEFAULT_VOLUME) command += ` --volume ${action.volume}`;
+  return command;
 }
 
 export interface HookEntry { matcher?: string; hooks: Array<{ type: "command"; command: string }> }
@@ -143,6 +176,7 @@ export function buildHooksBlock(config: NotificationConfig, skillDir = "<SKILL_D
     if (!action.isConfigured()) continue;
     const entry: HookEntry = { hooks: [{ type: "command", command: hookCommand(skillDir, action) }] };
     if (MATCHER_EVENTS.has(action.hook_event)) entry.matcher = action.matcher || "*";
+    else if (action.matcher) entry.matcher = action.matcher;
     (hooks[action.hook_event] ??= []).push(entry);
   }
   return { hooks };
@@ -150,7 +184,7 @@ export function buildHooksBlock(config: NotificationConfig, skillDir = "<SKILL_D
 
 export function buildSkillMd(config: NotificationConfig): string {
   const rows = ["| Action | Hook event | Sound source |", "|--------|-----------|--------------|", ...config.actions.map((a) => {
-    const matcher = MATCHER_EVENTS.has(a.hook_event) && a.matcher ? ` (matcher: \`${a.matcher}\`)` : "";
+    const matcher = a.matcher ? ` (matcher: \`${a.matcher}\`)` : "";
     return `| ${a.label} | \`${a.hook_event}\`${matcher} | \`${a.describeSound()}\` |`;
   })];
   const configured = config.actions.filter((a) => a.isConfigured());

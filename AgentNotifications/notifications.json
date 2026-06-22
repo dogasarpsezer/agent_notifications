@@ -7,7 +7,8 @@
       "hook_event": "Stop",
       "matcher": "",
       "sound_mode": "single",
-      "sound_file": "Complete Sound effect ( No copyright ).mp3"
+      "sound_file": "Complete Sound effect ( No copyright ).mp3",
+      "volume": 50
     },
     {
       "id": "question",
@@ -15,15 +16,8 @@
       "hook_event": "Notification",
       "matcher": "",
       "sound_mode": "single",
-      "sound_file": "Question.mp3"
-    },
-    {
-      "id": "session-start",
-      "label": "Session start",
-      "hook_event": "SessionStart",
-      "matcher": "",
-      "sound_mode": "single",
-      "sound_file": "J.A.R.V.I.S 4K UHD LIVE WALLPAPER - WELCOME BACK SIR.mp3"
+      "sound_file": "Question.mp3",
+      "volume": 50
     }
   ]
 }
